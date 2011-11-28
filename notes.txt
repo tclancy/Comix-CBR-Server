@@ -9,5 +9,13 @@ Concept: consume a directory (or directories?) and return JSON at a few URL patt
 Issues
     file name formatting is incredibly inconsistent
         ignore all the shit in parentheses
+        if all else fails, lose ALL of the alpha characters and just get the numbers, fall back to parent directory name
     issue numbering is something of a mess
         once you figure out file name concept, strip out leading 0s to prevent 010 being in front of 02
+    can I at least trust directory names to be meaningful and correct?
+    be nice to process folders, files and contents via a generator, so there isn't a huge start up issue
+    bonus points: watch directory for changes, update
+
+Configuration file
+    port number
+    root directory

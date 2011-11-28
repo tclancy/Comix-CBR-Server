@@ -1,0 +1,13 @@
+Twisted docs: http://twistedmatrix.com/trac/
+
+Concept: consume a directory (or directories?) and return JSON at a few URL patterns
+    root = titles I know about
+    /name = issues of a given title
+    /name/issue id = json dump of {page & image urls}
+    /name/issue id/page = image url
+
+Issues
+    file name formatting is incredibly inconsistent
+        ignore all the shit in parentheses
+    issue numbering is something of a mess
+        once you figure out file name concept, strip out leading 0s to prevent 010 being in front of 02

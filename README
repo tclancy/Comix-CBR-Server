@@ -1,0 +1,7 @@
+Comix CBR Server
+================
+
+This project hopes to be a simple Python web server to provide CBR files
+and details of those files via json. Once that lives, an HTML CBR consumer
+should also be added to make the whole thing nice and self-contained, even
+if no one uses it.

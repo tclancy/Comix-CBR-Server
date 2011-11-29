@@ -153,22 +153,24 @@ class CBRResource(resource.Resource):
         return directory.replace('\\', '/')
 
 
-config = ConfigParser.ConfigParser()
-try:
-    config.read("comix.conf")
-    port = int(config.get("basics", "port"))
+# run as script
+if __name__ == '__main__':
+    config = ConfigParser.ConfigParser()
     try:
-        reactor.listenTCP(port, server.Site(
-            CBRResource(config.get("basics", "directory")))
-        )
-        reactor.run()
-    except twistedErrors.CannotListenError:
-        logger.critical("Could not listen on port %d. Is something else running there?" % port)
+        config.read("comix.conf")
+        port = int(config.get("basics", "port"))
+        try:
+            reactor.listenTCP(port, server.Site(
+                CBRResource(config.get("basics", "directory")))
+            )
+            reactor.run()
+        except twistedErrors.CannotListenError:
+            logger.critical("Could not listen on port %d. Is something else running there?" % port)
+            sys.exit(1)
+    except ConfigParser.ParsingError, e:
+        logger.critical("""Sorry, I couldn't find a comix.conf file in this directory.
+    It should contain a [basics] section with port and directory info""")
         sys.exit(1)
-except ConfigParser.ParsingError, e:
-    logger.critical("""Sorry, I couldn't find a comix.conf file in this directory.
-It should contain a [basics] section with port and directory info""")
-    sys.exit(1)
-except ValueError, e:
-    logger.critical("The value for port in comix.conf must be a number")
-    sys.exit(1)
+    except ValueError, e:
+        logger.critical("The value for port in comix.conf must be a number")
+        sys.exit(1)

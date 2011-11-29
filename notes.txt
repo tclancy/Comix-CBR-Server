@@ -19,3 +19,8 @@ Issues
 Configuration file
     port number
     root directory
+
+Server
+    add ability to shut the thing down
+    also make sure to close connections properly
+        need to read http://blackjml.livejournal.com/23029.html

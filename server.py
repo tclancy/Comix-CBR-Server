@@ -172,9 +172,19 @@ class CBRResource(resource.Resource):
         if not response or not response.has_key("body"):
             return resource.NoResource()
         return template % {
-            "title": "Comix Server",
+            "title": str(response["title"]),
             "body": str(response["body"])
         }
+    
+    def get_matching_response(self, path):
+        request_info = filter(None, path.split("/"))
+        if request_info:
+            top_folder = request_info[0]
+            if top_folder == "favicon.ico":
+                return None
+            if top_folder in self.parent.titles.keys():
+                return self.request_title(top_folder)
+        return self.request_root()
     
     def request_root(self):
         response = "Serving contents of %s<ul>" % self.parent.directory
@@ -183,14 +193,22 @@ class CBRResource(resource.Resource):
             response += '<li><a href="/%s/">%s</a>: %d issues</li>' % (key,
                                             entry["full title"], entry["count"])
         response += "</ul>"
-        return {"body": response}
+        return {
+            "body": response,
+            "title": "Comix Server"
+        }
     
-    def get_matching_response(self, path):
-        request_info = filter(None, path.split("/"))
-        if request_info:
-            if request_info[0] == "favicon.ico":
-                return None
-        return self.request_root()
+    def request_title(self, title_key):
+        entry = self.parent.titles[title_key]
+        title = entry["full title"]
+        content = "<h1>%s</h1><ul>" % (title)
+        for f in entry["files"]:
+            content += "<li>%s</li>" % f
+        content += "</ul>"
+        return {
+            "body": content,
+            "title": title
+        }
 
 
 # run as script

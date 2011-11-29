@@ -93,14 +93,15 @@ class ComicServer(resource.Resource):
             if folder in self.ignored_folder_names:
                 continue
             folder = self._prep_title(folder)
-            if self.titles.has_key(folder):
+            key = self._slugify(folder)
+            if self.titles.has_key(key):
                 exists = True
-                self.titles[folder]["count"] = self.titles[folder]["count"] + 1
-        if not exists or not self.titles.has_key(folder):
-            self.titles[folder] = {"count": 1, "files": []}
+                self.titles[key]["count"] = self.titles[key]["count"] + 1
+        if not exists or not self.titles.has_key(key):
+            self.titles[key] = {"count": 1, "files": [], "full title": folder}
         
         # ignore duplicate files
-        file_list = self.titles[folder]["files"]
+        file_list = self.titles[key]["files"]
         file_path = os.path.join(root, filename)
         if file_path not in file_list:
             file_list.append(file_path)
@@ -143,6 +144,11 @@ class ComicServer(resource.Resource):
         For Windows, get rid of \ crud
         """
         return directory.replace('\\', '/')
+    
+    def _slugify(self, value):
+        value = unicode(re.sub('[^\w\s-]', '', value).strip().lower())
+        return re.sub('[-\s]+', '-', value)
+
 
 class CBRResource(resource.Resource):
     isLeaf = True
@@ -153,13 +159,21 @@ class CBRResource(resource.Resource):
         self.parent = parent
 
     def render_GET(self, request):
-        # request.path
         request.setHeader("content-type", "text/html")
-        response = "Serving contents of %s" % self.parent.directory
+        return str(self.get_matching_response(request.path))
+    
+    def request_root(self):
+        response = "Serving contents of %s<ul>" % self.parent.directory
         for key in sorted(self.parent.titles.iterkeys()):
             entry = self.parent.titles[key]
-            response += "<br />%s: %d issues" % (key, entry["count"])
+            response += '<li><a href="/%s/">%s</a>: %d issues</li>' % (key,
+                                            entry["full title"], entry["count"])
+        response += "</ul>"
         return response
+    
+    def get_matching_response(self, path):
+        return self.request_root()
+
 
 
 # run as script

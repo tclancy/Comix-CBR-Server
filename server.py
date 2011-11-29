@@ -1,4 +1,5 @@
 import ConfigParser
+import glob
 
 from twisted.web import server, resource
 from twisted.internet import reactor
@@ -9,11 +10,17 @@ class CBRResource(resource.Resource):
     def __init__(self, directory):
         # old-skool call to parent
         resource.Resource.__init__(self)
+        # TODO: directory handling - make sure ends in /,
+        # replace Windows separator stuff with /
         self.directory = directory
+        self.dirlist = glob.glob('%s*' % self.directory)
 
     def render_GET(self, request):
-        request.setHeader("content-type", "text/plain")
-        return "Serving contents of %s" % self.directory
+        request.setHeader("content-type", "text/html")
+        response = "Serving contents of %s" % self.directory
+        for d in self.dirlist:
+            response += "<br />%s" % d
+        return response
 
 
 config = ConfigParser.ConfigParser()

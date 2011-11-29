@@ -3,9 +3,10 @@ import fnmatch
 import logging
 import os
 import re
+import sys
 
 from twisted.web import server, resource
-from twisted.internet import reactor
+from twisted.internet import reactor, error as twistedErrors
 
 # Setup logging
 logger = logging.getLogger("comix")
@@ -156,13 +157,18 @@ config = ConfigParser.ConfigParser()
 try:
     config.read("comix.conf")
     port = int(config.get("basics", "port"))
-    reactor.listenTCP(port, server.Site(
-        CBRResource(config.get("basics", "directory")))
-    )
-    reactor.run()
+    try:
+        reactor.listenTCP(port, server.Site(
+            CBRResource(config.get("basics", "directory")))
+        )
+        reactor.run()
+    except twistedErrors.CannotListenError:
+        logger.critical("Could not listen on port %d. Is something else running there?" % port)
+        sys.exit(1)
 except ConfigParser.ParsingError, e:
-    print """Sorry, I couldn't find a comix.conf file in this directory.
-It should contain a [basics] section with port and directory info"""
+    logger.critical("""Sorry, I couldn't find a comix.conf file in this directory.
+It should contain a [basics] section with port and directory info""")
     sys.exit(1)
 except ValueError, e:
-    print "The value for port in comix.conf must be a number"
+    logger.critical("The value for port in comix.conf must be a number")
+    sys.exit(1)

@@ -168,9 +168,12 @@ class CBRResource(resource.Resource):
 
     def render_GET(self, request):
         request.setHeader("content-type", "text/html")
+        response = self.get_matching_response(request.path)
+        if not response or not response.has_key("body"):
+            return resource.NoResource()
         return template % {
             "title": "Comix Server",
-            "body": str(self.get_matching_response(request.path))
+            "body": str(response["body"])
         }
     
     def request_root(self):
@@ -180,9 +183,13 @@ class CBRResource(resource.Resource):
             response += '<li><a href="/%s/">%s</a>: %d issues</li>' % (key,
                                             entry["full title"], entry["count"])
         response += "</ul>"
-        return response
+        return {"body": response}
     
     def get_matching_response(self, path):
+        request_info = filter(None, path.split("/"))
+        if request_info:
+            if request_info[0] == "favicon.ico":
+                return None
         return self.request_root()
 
 

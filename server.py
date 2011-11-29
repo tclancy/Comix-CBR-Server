@@ -10,9 +10,14 @@ class CBRResource(resource.Resource):
     def __init__(self, directory):
         # old-skool call to parent
         resource.Resource.__init__(self)
+        self.titles = {}
+        
         # TODO: directory handling - make sure ends in /,
         # replace Windows separator stuff with /
         self.directory = directory
+        
+        # TODO: get CBR files via http://stackoverflow.com/questions/2186525/use-a-glob-to-find-files-recursively-in-python
+        # when you find a cbr or cbz, put folder name into titles
         self.dirlist = glob.glob('%s*' % self.directory)
 
     def render_GET(self, request):

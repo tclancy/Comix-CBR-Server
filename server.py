@@ -40,6 +40,14 @@ LONELY_APOSTROPHE_CLEANER = re.compile("\s+'\W*\s*")
 HIGH_ASCII_CLEANER = re.compile("[^\\x00-\\x7f]")
 ANNUALS_CLEANER = re.compile("[\s|-]+annuals.*", re.IGNORECASE)
 
+try:
+    f = open("template.html", "r")
+    template = f.read()
+    f.close()
+except IOError:
+    logger.critical("Could not find template.html in this directory")
+    sys.exit(1)
+
 class ComicServer(resource.Resource):
     def __init__(self, directory):
         # old-skool call to parent
@@ -160,7 +168,10 @@ class CBRResource(resource.Resource):
 
     def render_GET(self, request):
         request.setHeader("content-type", "text/html")
-        return str(self.get_matching_response(request.path))
+        return template % {
+            "title": "Comix Server",
+            "body": str(self.get_matching_response(request.path))
+        }
     
     def request_root(self):
         response = "Serving contents of %s<ul>" % self.parent.directory
@@ -173,7 +184,6 @@ class CBRResource(resource.Resource):
     
     def get_matching_response(self, path):
         return self.request_root()
-
 
 
 # run as script

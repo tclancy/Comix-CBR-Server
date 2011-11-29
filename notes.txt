@@ -21,6 +21,14 @@ Configuration file
     root directory
 
 Server
+    big Twisted tutorial at http://krondo.com/blog/?page_id=1327
+    learn how to build a proper server and break out code
+    threads - http://stackoverflow.com/questions/5904734/twisted-deferred-vs-blocking-in-web-services
     add ability to shut the thing down
     also make sure to close connections properly
         need to read http://blackjml.livejournal.com/23029.html
+    some more info at http://zenmachine.wordpress.com/web-services-and-twisted/
+        would be good to be caching results after startup
+
+Misc
+    Why does server find hundreds fewer files on Mac looking at the same directory?

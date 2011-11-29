@@ -73,6 +73,7 @@ class CBRResource(resource.Resource):
         logger.info("Found %d comics" % total)
 
     def render_GET(self, request):
+        # request.path
         request.setHeader("content-type", "text/html")
         response = "Serving contents of %s" % self.directory
         for key in sorted(self.titles.iterkeys()):

@@ -40,9 +40,7 @@ LONELY_APOSTROPHE_CLEANER = re.compile("\s+'\W*\s*")
 HIGH_ASCII_CLEANER = re.compile("[^\\x00-\\x7f]")
 ANNUALS_CLEANER = re.compile("[\s|-]+annuals.*", re.IGNORECASE)
 
-class CBRResource(resource.Resource):
-    isLeaf = True
-    
+class ComicServer(resource.Resource):
     def __init__(self, directory):
         # old-skool call to parent
         resource.Resource.__init__(self)
@@ -71,16 +69,9 @@ class CBRResource(resource.Resource):
                 self._add_match_to_collection(f, root)
                 total = total + 1
         logger.info("Found %d comics" % total)
-
-    def render_GET(self, request):
-        # request.path
-        request.setHeader("content-type", "text/html")
-        response = "Serving contents of %s" % self.directory
-        for key in sorted(self.titles.iterkeys()):
-            entry = self.titles[key]
-            #response += "<br />%s: %d issues" % (key, entry["count"])
-            response += "<br />%s" % (key)
-        return response
+    
+    def getChild(self, url, request):
+        return CBRResource(url, request, self)
     
     def _add_match_to_collection(self, filename, root):
         """
@@ -153,6 +144,23 @@ class CBRResource(resource.Resource):
         """
         return directory.replace('\\', '/')
 
+class CBRResource(resource.Resource):
+    isLeaf = True
+    
+    def __init__(self, url, request, parent):
+        self.url = url
+        self.request = request
+        self.parent = parent
+
+    def render_GET(self, request):
+        # request.path
+        request.setHeader("content-type", "text/html")
+        response = "Serving contents of %s" % self.parent.directory
+        for key in sorted(self.parent.titles.iterkeys()):
+            entry = self.parent.titles[key]
+            response += "<br />%s: %d issues" % (key, entry["count"])
+        return response
+
 
 # run as script
 if __name__ == '__main__':
@@ -162,7 +170,7 @@ if __name__ == '__main__':
         port = int(config.get("basics", "port"))
         try:
             reactor.listenTCP(port, server.Site(
-                CBRResource(config.get("basics", "directory")))
+                ComicServer(config.get("basics", "directory")))
             )
             reactor.run()
         except twistedErrors.CannotListenError:

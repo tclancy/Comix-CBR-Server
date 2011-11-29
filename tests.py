@@ -1,13 +1,16 @@
 #!/usr/bin/env python
 
+import ConfigParser
 import unittest
 
-from server import CBRResource
+from server import ComicServer, CBRResource
 
 
 class TestComicParser(unittest.TestCase):
     def setUp(self):
-        self.cbr = CBRResource("E:/Comics/")
+        config = ConfigParser.ConfigParser()
+        config.read("comix.conf")
+        self.cbr = ComicServer(config.get("basics", "directory"))
     
     def test_filename_cleaner(self):
         self.assertEqual("Best of the Brave and the Bold",

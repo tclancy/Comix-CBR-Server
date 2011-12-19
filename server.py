@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import ConfigParser
 import fnmatch
 import logging
@@ -6,6 +8,7 @@ import re
 import sys
 
 from twisted.web import server, resource
+from twisted.web.error import NoResource
 from twisted.internet import reactor, error as twistedErrors
 
 # Setup logging
@@ -58,7 +61,7 @@ class ComicServer(resource.Resource):
         # replace Windows separator stuff with /
         self.directory = self._normalize_directory_path(directory)
         if not os.path.exists(self.directory):
-            logger.critical("%s is not a valid root directory" % self.directory)
+            logger.critical("%s is not a valid path for the root directory" % self.directory)
             sys.exit(1)
         
         # ASSUMPTION: Empty folders (parents that only contain other folders or
@@ -106,13 +109,14 @@ class ComicServer(resource.Resource):
                 exists = True
                 self.titles[key]["count"] = self.titles[key]["count"] + 1
         if not exists or not self.titles.has_key(key):
-            self.titles[key] = {"count": 1, "files": [], "full title": folder}
+            self.titles[key] = {"count": 1, "files": {}, "full title": folder}
         
         # ignore duplicate files
         file_list = self.titles[key]["files"]
         file_path = os.path.join(root, filename)
-        if file_path not in file_list:
-            file_list.append(file_path)
+        file_key = self._slugify(filename)
+        if file_key not in file_list:
+            file_list[file_key] = file_path
     
     def _prep_title(self, folder_name):
         """
@@ -169,7 +173,8 @@ class CBRResource(resource.Resource):
     def render_GET(self, request):
         request.setHeader("content-type", "text/html")
         response = self.get_matching_response(request.path)
-        if not response or not response.has_key("body"):
+        if (not response
+            or not hasattr(response, "has_key") or not response.has_key("body")):
             return resource.NoResource()
         return template % {
             "title": str(response["title"]),
@@ -182,6 +187,8 @@ class CBRResource(resource.Resource):
             top_folder = request_info[0]
             if top_folder == "favicon.ico":
                 return None
+            if top_folder == "read" and len(request_info) == 3:
+                return self.request_file(request_info[1], request_info[2])
             if top_folder in self.parent.titles.keys():
                 return self.request_title(top_folder)
         return self.request_root()
@@ -202,9 +209,21 @@ class CBRResource(resource.Resource):
         entry = self.parent.titles[title_key]
         title = entry["full title"]
         content = "<h1>%s</h1><ul>" % (title)
-        for f in entry["files"]:
-            content += "<li>%s</li>" % f
+        for key in entry["files"].keys():
+            content += '<li><a href="/read/%s/%s/">%s</a></li>' % (title_key,
+                                                key, entry["files"][key])
         content += "</ul>"
+        return {
+            "body": content,
+            "title": title
+        }
+    
+    def request_file(self, title_key, file_key):
+        if not self.parent.titles.has_key(title_key):
+            return None
+        entry = self.parent.titles[title_key]
+        title = entry["full title"]
+        content = "<h1>%s</h1><ul>" % (title)
         return {
             "body": content,
             "title": title

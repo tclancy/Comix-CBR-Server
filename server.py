@@ -4,6 +4,7 @@ import ConfigParser
 import fnmatch
 import logging
 import os
+import rarfile
 import re
 import sys
 import zipfile
@@ -255,7 +256,8 @@ class CBRResource(resource.Resource):
             except zipfile.BadZipfile:
                 return None
         if is_rar:
-            pass
+            rf = rarfile.RarFile(path)
+            return [f.filename for f in rf.infolist() if f.filename != "README"]
         return None
 
 

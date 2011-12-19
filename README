@@ -6,3 +6,4 @@ This project hopes to be a simple Python web server to provide CBR and CBZ files
 
 * Stuff is getting messy and hard to understand, clean up code and comment
 * Review naming conventions (file v issue v path v whatever)
+* Figure out how to properly raise a 404

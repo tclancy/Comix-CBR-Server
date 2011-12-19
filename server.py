@@ -194,9 +194,9 @@ class CBRResource(resource.Resource):
             if top_folder == "favicon.ico":
                 return None
             if top_folder == "read" and len(request_info) == 3:
-                return self.request_file(request_info[1], request_info[2])
+                return self.request_issue(request_info[1], request_info[2])
             if top_folder in self.parent.titles.keys():
-                return self.request_title(top_folder)
+                return self.request_title_list(top_folder)
         return self.request_root()
     
     def request_root(self):
@@ -211,7 +211,7 @@ class CBRResource(resource.Resource):
             "title": "Comix Server"
         }
     
-    def request_title(self, title_key):
+    def request_title_list(self, title_key):
         entry = self.parent.titles[title_key]
         title = entry["full title"]
         content = "<h1>%s</h1><ul>" % (title)
@@ -224,7 +224,7 @@ class CBRResource(resource.Resource):
             "title": title
         }
     
-    def request_file(self, title_key, file_key):
+    def request_issue(self, title_key, file_key):
         if not self.parent.titles.has_key(title_key):
             return None
         entry = self.parent.titles[title_key]
@@ -254,6 +254,8 @@ class CBRResource(resource.Resource):
         .cb7 = 7z
         .cbt = TAR
         .cba = ACE
+        
+        rarfile docs: http://rarfile.berlios.de/doc/
         """
         if not os.path.exists(path):
             return None

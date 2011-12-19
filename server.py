@@ -245,17 +245,26 @@ class CBRResource(resource.Resource):
         }
     
     def _open_issue(self, path):
+        """
+        Open issue file based on extension
+        .cbr = RAR file
+        .cbz = ZIP file
+        See full file description at http://en.wikipedia.org/wiki/Comic_Book_Archive_file
+        TODO: Handle additional types
+        .cb7 = 7z
+        .cbt = TAR
+        .cba = ACE
+        """
         if not os.path.exists(path):
             return None
-        is_zip = path.lower()[-3:] == "cbz"
-        is_rar = path.lower()[-3:] == "cbr"
-        if is_zip:
+        extension = path.lower()[-3:]
+        if extension == "cbz":
             try:
                 z = zipfile.ZipFile(path)
                 return z.namelist()
             except zipfile.BadZipfile:
                 return None
-        if is_rar:
+        if extension == "cbr":
             rf = rarfile.RarFile(path)
             return [f.filename for f in rf.infolist() if f.filename != "README"]
         return None

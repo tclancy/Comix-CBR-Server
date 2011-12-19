@@ -1,0 +1,3 @@
+Twisted==11.1.0
+rarfile==2.4
+zope.interface==3.8.0

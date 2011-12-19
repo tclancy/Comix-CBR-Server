@@ -6,6 +6,7 @@ import logging
 import os
 import re
 import sys
+import zipfile
 
 from twisted.web import server, resource
 from twisted.web.error import NoResource
@@ -82,7 +83,11 @@ class ComicServer(resource.Resource):
         logger.info("Found %d comics" % total)
     
     def getChild(self, url, request):
-        return CBRResource(url, request, self)
+        response = CBRResource(url, request, self)
+        if response:
+            return response
+        return NoResource()
+        
     
     def _add_match_to_collection(self, filename, root):
         """
@@ -175,7 +180,7 @@ class CBRResource(resource.Resource):
         response = self.get_matching_response(request.path)
         if (not response
             or not hasattr(response, "has_key") or not response.has_key("body")):
-            return resource.NoResource()
+            return None
         return template % {
             "title": str(response["title"]),
             "body": str(response["body"])
@@ -222,12 +227,36 @@ class CBRResource(resource.Resource):
         if not self.parent.titles.has_key(title_key):
             return None
         entry = self.parent.titles[title_key]
-        title = entry["full title"]
-        content = "<h1>%s</h1><ul>" % (title)
+        issue = entry["files"].get(file_key, None)
+        if not issue:
+            return None
+        path = issue
+        file_contents = self._open_issue(issue)
+        if not file_contents:
+            return None
+        content = "<h1>Files in %s</h1><ul>" % (path)
+        for f in file_contents:
+            content += "<li>%s</li>" % f
+        content += "</ul>"
         return {
             "body": content,
-            "title": title
+            "title": path
         }
+    
+    def _open_issue(self, path):
+        if not os.path.exists(path):
+            return None
+        is_zip = path.lower()[-3:] == "cbz"
+        is_rar = path.lower()[-3:] == "cbr"
+        if is_zip:
+            try:
+                z = zipfile.ZipFile(path)
+                return z.namelist()
+            except zipfile.BadZipfile:
+                return None
+        if is_rar:
+            pass
+        return None
 
 
 # run as script

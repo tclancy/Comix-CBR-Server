@@ -6,6 +6,8 @@ import logging
 import os
 import rarfile
 import re
+from shutil import rmtree
+import signal
 import sys
 import zipfile
 
@@ -44,7 +46,12 @@ VOLUME_CLEANER = re.compile("\s*v\s{0,1}\d+\s*", re.IGNORECASE)
 LONELY_APOSTROPHE_CLEANER = re.compile("\s+'\W*\s*")
 HIGH_ASCII_CLEANER = re.compile("[^\\x00-\\x7f]")
 ANNUALS_CLEANER = re.compile("[\s|-]+annuals.*", re.IGNORECASE)
+STORAGE_PATH = "temporary_storage"
 
+# RAR constants
+rarfile.NEED_COMMENTS = 0
+
+# global setup stuff
 try:
     f = open("template.html", "r")
     template = f.read()
@@ -52,6 +59,49 @@ try:
 except IOError:
     logger.critical("Could not find template.html in this directory")
     sys.exit(1)
+
+def setup():
+    """
+    Create the temporary directory we'll extract files to. If it still exists
+    because a previous run could not delete it, clean it up a bit. Why?
+    Because I'm stupidly anal-retentive (and because I don't want to be filling
+    up someone's hard drive more than I need to).
+    """
+    if os.path.exists(STORAGE_PATH):
+        for f in os.listdir(STORAGE_PATH):
+            path = os.path.join(STORAGE_PATH, f)
+            if os.path.isfile(path):
+                try:
+                    os.unlink(path)
+                except OSError:
+                    pass
+    else:
+        try:
+            os.makedirs(STORAGE_PATH)
+        except OSError:
+            root = os.path.dirname(os.path.realpath(__file__))
+            logger.critical("I don't have enough permission to create %s in %s" %
+                            STORAGE_PATH, root)
+
+def clean_up():
+    try:
+        rmtree(STORAGE_PATH)
+    except OSError:
+        logger.info("I wasn't able to delete %s. Are you still viewing something?"
+                    % STORAGE_PATH)
+
+def shutdown_signal_handler(signal, frame):
+    """
+    Just a wrapper because I was getting annoyed trying to make clean_up
+    work in both cases. TODO: Make this work instead of throw an exception
+    """
+    clean_up()
+    sys.exit(0)
+
+reactor.addSystemEventTrigger("before", "shutdown", clean_up)
+#signal.signal(signal.SIGINT, shutdown_signal_handler)
+setup()
+
 
 class ComicServer(resource.Resource):
     def __init__(self, directory):
@@ -267,8 +317,10 @@ class CBRResource(resource.Resource):
             except zipfile.BadZipfile:
                 return None
         if extension == "cbr":
+            if not rarfile.is_rarfile(path):
+                return None
             rf = rarfile.RarFile(path)
-            return [f.filename for f in rf.infolist() if f.filename != "README"]
+            return [f.filename for f in rf.infolist() if f.filename.find("\\") > -1]
         return None
 
 

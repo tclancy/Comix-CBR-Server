@@ -7,7 +7,6 @@ import os
 import rarfile
 import re
 from shutil import rmtree
-import signal
 import sys
 import zipfile
 
@@ -46,7 +45,8 @@ VOLUME_CLEANER = re.compile("\s*v\s{0,1}\d+\s*", re.IGNORECASE)
 LONELY_APOSTROPHE_CLEANER = re.compile("\s+'\W*\s*")
 HIGH_ASCII_CLEANER = re.compile("[^\\x00-\\x7f]")
 ANNUALS_CLEANER = re.compile("[\s|-]+annuals.*", re.IGNORECASE)
-STORAGE_PATH = "temporary_storage"
+ROOT = os.path.dirname(os.path.realpath(__file__))
+STORAGE_PATH = os.path.join(ROOT, "temporary_storage")
 
 # RAR constants
 rarfile.NEED_COMMENTS = 0
@@ -79,9 +79,9 @@ def setup():
         try:
             os.makedirs(STORAGE_PATH)
         except OSError:
-            root = os.path.dirname(os.path.realpath(__file__))
+            
             logger.critical("I don't have enough permission to create %s in %s" %
-                            STORAGE_PATH, root)
+                            STORAGE_PATH, ROOT)
 
 def clean_up():
     try:
@@ -90,16 +90,7 @@ def clean_up():
         logger.info("I wasn't able to delete %s. Are you still viewing something?"
                     % STORAGE_PATH)
 
-def shutdown_signal_handler(signal, frame):
-    """
-    Just a wrapper because I was getting annoyed trying to make clean_up
-    work in both cases. TODO: Make this work instead of throw an exception
-    """
-    clean_up()
-    sys.exit(0)
-
 reactor.addSystemEventTrigger("before", "shutdown", clean_up)
-#signal.signal(signal.SIGINT, shutdown_signal_handler)
 setup()
 
 
@@ -313,14 +304,25 @@ class CBRResource(resource.Resource):
         if extension == "cbz":
             try:
                 z = zipfile.ZipFile(path)
-                return z.namelist()
+                files = z.namelist()
+                for f in files:
+                    save_path = os.path.join(STORAGE_PATH, f)
+                    save = open(save_path, "w")
+                    save.write(z.read(f))
+                    save.close()
+                return files
             except zipfile.BadZipfile:
                 return None
         if extension == "cbr":
             if not rarfile.is_rarfile(path):
                 return None
             rf = rarfile.RarFile(path)
-            return [f.filename for f in rf.infolist() if f.filename.find("\\") > -1]
+            try:
+                rf.extractall(path=STORAGE_PATH)
+                return [f.filename for f in rf.infolist() if f.filename.find("\\") > -1]
+            except OSError:
+                logging.warn("Could not extract contents of %s" % path)
+                return ["Could not extract the files from this issue"]
         return None
 
 

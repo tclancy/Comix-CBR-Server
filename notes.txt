@@ -16,6 +16,11 @@ Issues
     be nice to process folders, files and contents via a generator, so there isn't a huge start up issue
     bonus points: watch directory for changes, update
 
+RAR Files
+    rarfile docs: http://rarfile.berlios.de/doc/
+    http://stackoverflow.com/questions/1185959/read-content-of-rar-file-into-memory-in-python
+    having trouble figuring out how to extract the files locally
+
 Configuration file
     port number
     root directory

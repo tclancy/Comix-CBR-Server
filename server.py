@@ -300,12 +300,19 @@ class CBRResource(resource.Resource):
         if not os.path.exists(path):
             return None
         extension = path.lower()[-3:]
+        folder_name = path.split(os.sep)[-1].split(".")[0]
+        print "Folder: %s" % folder_name
+        folder_path = os.path.join(STORAGE_PATH, folder_name)
+        if not os.path.exists(folder_path):
+            os.makedirs(folder_path)
+        
         if extension == "cbz":
             try:
                 z = zipfile.ZipFile(path)
                 files = self._filter_filenames(z.namelist())
+                # TODO: Create a temporary folder for files
                 for f in files:
-                    save_path = os.path.join(STORAGE_PATH, f.split(os.sep)[-1])
+                    save_path = os.path.join(folder_path, f.split(os.sep)[-1])
                     try:
                         save = open(save_path, "w")
                         save.write(z.read(f))
@@ -316,8 +323,8 @@ class CBRResource(resource.Resource):
                 return files
             except zipfile.BadZipfile:
                 return None
+        
         if extension == "cbr":
-            
             try:
                 file = open(path, "r")
                 rar = RarFile(file)

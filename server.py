@@ -4,7 +4,7 @@ import ConfigParser
 import fnmatch
 import logging
 import os
-import rarfile
+from rar import RarFile, BadRarFile
 import re
 from shutil import rmtree
 import sys
@@ -45,11 +45,12 @@ VOLUME_CLEANER = re.compile("\s*v\s{0,1}\d+\s*", re.IGNORECASE)
 LONELY_APOSTROPHE_CLEANER = re.compile("\s+'\W*\s*")
 HIGH_ASCII_CLEANER = re.compile("[^\\x00-\\x7f]")
 ANNUALS_CLEANER = re.compile("[\s|-]+annuals.*", re.IGNORECASE)
+IMAGE_FILE_EXTENSION_RE = re.compile(".jpe?g", re.IGNORECASE)
+FILENAME_SPACE_CLEANER = re.compile("\s+|\s+-\s+")
+
 ROOT = os.path.dirname(os.path.realpath(__file__))
 STORAGE_PATH = os.path.join(ROOT, "temporary_storage")
 
-# RAR constants
-rarfile.NEED_COMMENTS = 0
 
 # global setup stuff
 try:
@@ -295,8 +296,6 @@ class CBRResource(resource.Resource):
         .cb7 = 7z
         .cbt = TAR
         .cba = ACE
-        
-        rarfile docs: http://rarfile.berlios.de/doc/
         """
         if not os.path.exists(path):
             return None
@@ -304,26 +303,33 @@ class CBRResource(resource.Resource):
         if extension == "cbz":
             try:
                 z = zipfile.ZipFile(path)
-                files = z.namelist()
+                files = self._filter_filenames(z.namelist())
                 for f in files:
-                    save_path = os.path.join(STORAGE_PATH, f)
-                    save = open(save_path, "w")
-                    save.write(z.read(f))
-                    save.close()
+                    save_path = os.path.join(STORAGE_PATH, f.split(os.sep)[-1])
+                    try:
+                        save = open(save_path, "w")
+                        save.write(z.read(f))
+                        save.close()
+                    except IOError:
+                        logging.warn("Unable to open a file: %s" % save_path)
+                        logging.warn("Original path: %s" % f)
                 return files
             except zipfile.BadZipfile:
                 return None
         if extension == "cbr":
-            if not rarfile.is_rarfile(path):
-                return None
-            rf = rarfile.RarFile(path)
+            
             try:
-                rf.extractall(path=STORAGE_PATH)
-                return [f.filename for f in rf.infolist() if f.filename.find("\\") > -1]
-            except OSError:
+                file = open(path, "r")
+                rar = RarFile(file)
+                file = None
+                return [f for f in self._filter_filenames(rar.namelist())]
+            except BadRarFile:
                 logging.warn("Could not extract contents of %s" % path)
                 return ["Could not extract the files from this issue"]
         return None
+    
+    def _filter_filenames(self, name_list):
+        return [f for f in name_list if IMAGE_FILE_EXTENSION_RE.search(f)]
 
 
 # run as script

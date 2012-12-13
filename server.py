@@ -16,7 +16,7 @@ from twisted.python.log import err
 from twisted.protocols.basic import FileSender
 from twisted.internet import reactor, defer, error as twistedErrors
 from twisted.web import server, resource
-from twisted.web.error import NoResource
+from twisted.web.resource import NoResource
 
 # Setup logging
 logger = logging.getLogger("comix")
@@ -68,6 +68,7 @@ except IOError:
     logger.critical("Could not find template.html in this directory")
     sys.exit(1)
 
+
 def setup():
     """
     Create the temporary directory we'll extract files to. If it still exists
@@ -87,9 +88,9 @@ def setup():
         try:
             os.makedirs(STORAGE_PATH)
         except OSError:
-            
             logger.critical("I don't have enough permission to create %s in %s" %
                             STORAGE_PATH, ROOT)
+
 
 def clean_up():
     try:
@@ -107,19 +108,19 @@ class ComicServer(resource.Resource):
         # old-skool call to parent
         resource.Resource.__init__(self)
         self.titles = {}
-        
+
         # TODO: directory handling - make sure ends in /,
         # replace Windows separator stuff with /
         self.directory = self._normalize_directory_path(directory)
         if not os.path.exists(self.directory):
             logger.critical("%s is not a valid path for the root directory" % self.directory)
             sys.exit(1)
-        
+
         # ASSUMPTION: Empty folders (parents that only contain other folders or
         # non-matching files) should never be used as a key in TITLES
         self.ignored_folder_names = []
         total = 0
-        
+
         # when you find a cbr or cbz, put folder name into titles
         # problem here: fnmatch is only case-insensitive on case-insensitive OSes - replace?
         for root, dirnames, filenames in os.walk(self.directory):
@@ -131,22 +132,21 @@ class ComicServer(resource.Resource):
                 self._add_match_to_collection(f, root)
                 total = total + 1
         logger.info("Found %d comics" % total)
-    
+
     def getChild(self, url, request):
         response = CBRResource(url, request, self)
         if response:
             return response
         return NoResource()
-        
-    
+
     def _add_match_to_collection(self, filename, root):
         """
         For a matching file, look at its folder information. If any of the folders
         in its parent path exist in self.titles already, use that. Otherwise,
         create a new entry.
-        
+
         Update book count and add this match to self.titles[key] files list
-        
+
         TODO: The problem with this folder-as-title logic is that its dependent
         on the order in which the folders are matched by fnmatch.filter
         As an example, ideally all of the titles I have under E:\Comics\Indies\Nexus
@@ -165,19 +165,19 @@ class ComicServer(resource.Resource):
                 self.titles[key]["count"] = self.titles[key]["count"] + 1
         if not exists or not self.titles.has_key(key):
             self.titles[key] = {"count": 1, "files": {}, "full title": folder}
-        
+
         # ignore duplicate files
         file_list = self.titles[key]["files"]
         file_path = os.path.join(root, filename)
         file_key = self._slugify(filename)
         if file_key not in file_list:
             file_list[file_key] = file_path
-    
+
     def _prep_title(self, folder_name):
         """
         Do some basic cleanup on the nastiness P2P folks and anal-retentives
         like to add to folders.
-        
+
         * Get rid of underscores and # signs
         * leading digits for sorted collections (e.g., '1. A New Hope')
             how to differentiate this from a comic like 2000 A.D.?
@@ -201,17 +201,17 @@ class ComicServer(resource.Resource):
         title = LONELY_APOSTROPHE_CLEANER.sub("", title)
         title = HIGH_ASCII_CLEANER.sub("", title)
         title = ANNUALS_CLEANER.sub("", title)
-        
+
         if not len(title):
             return folder_name
         return title
-    
+
     def _normalize_directory_path(self, directory):
         """
         For Windows, get rid of \ crud
         """
         return directory.replace('\\', '/')
-    
+
     def _slugify(self, value):
         value = unicode(re.sub('[^\w\s-]', '', value).strip().lower())
         return re.sub('[-\s]+', '-', value)
@@ -219,7 +219,7 @@ class ComicServer(resource.Resource):
 
 class CBRResource(resource.Resource):
     isLeaf = True
-    
+
     def __init__(self, url, request, parent):
         self.url = url
         self.request = request
@@ -230,23 +230,25 @@ class CBRResource(resource.Resource):
         response = self.get_matching_response(request.path)
         if not response:
             return None
-        if response.has_key("static"):
+        if "static" in response:
             file_path = response["static"]
             contentType, junk = mimetypes.guess_type(file_path)
             request.setHeader("Content-Type",
                               contentType if contentType else "text/plain")
             fp = open(file_path, "rb")
             d = FileSender().beginFileTransfer(fp, request)
+
             def cbFinished(ignored):
                 fp.close()
                 request.finish()
+
             d.addErrback(err).addCallback(cbFinished)
             return server.NOT_DONE_YET
         return template % {
             "title": str(response["title"]),
             "body": str(response["body"])
         }
-    
+
     def get_matching_response(self, path):
         request_info = filter(None, path.split("/"))
         if request_info:
@@ -260,7 +262,7 @@ class CBRResource(resource.Resource):
             if top_folder == "page" and len(request_info) == 4:
                 return self.request_page(*request_info[1:])
         return self.request_root()
-    
+
     def request_root(self):
         response = "Serving contents of %s<ul>" % self.parent.directory
         for key in sorted(self.parent.titles.iterkeys()):
@@ -272,7 +274,7 @@ class CBRResource(resource.Resource):
             "body": response,
             "title": "Comix Server"
         }
-    
+
     def request_title_list(self, title_key):
         entry = self.parent.titles[title_key]
         title = entry["full title"]
@@ -285,11 +287,14 @@ class CBRResource(resource.Resource):
             "body": content,
             "title": title
         }
-    
+
     def request_issue(self, title_key, file_key):
         file_contents = self._open_issue(title_key, file_key)
         if not file_contents:
-            return None
+            return {
+                "body": "Unable to open %s" % file_key,
+                "title": title_key
+            }
         content = "<h1>Files in %s</h1><ul>" % (title_key)
         for position, f in enumerate(file_contents):
             content += '<li><a href="/page/%s/%s/%d">%s</a></li>' % (
@@ -325,7 +330,7 @@ class CBRResource(resource.Resource):
         contents = CURRENT_ISSUE.get(cache_key, None)
         if contents:
             return contents
-        if not self.parent.titles.has_key(title_key):
+        if not title_key in self.parent.titles:
             return None
         entry = self.parent.titles[title_key]
         issue = entry["files"].get(file_key, None)
@@ -355,7 +360,7 @@ class CBRResource(resource.Resource):
         folder_path = os.path.join(STORAGE_PATH, folder_name)
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
-        
+
         if extension == "cbz":
             try:
                 z = zipfile.ZipFile(path)
@@ -371,10 +376,10 @@ class CBRResource(resource.Resource):
                     except IOError:
                         logging.warn("Unable to open a file: %s" % save_path)
                         logging.warn("Original path: %s" % f)
-                return paths
+                return ["Could not extract the files from this issue"]
             except zipfile.BadZipfile:
                 return None
-        
+
         if extension == "cbr":
             try:
                 file = open(path, "r")
@@ -385,7 +390,7 @@ class CBRResource(resource.Resource):
                 logging.warn("Could not extract contents of %s" % path)
                 return ["Could not extract the files from this issue"]
         return None
-    
+
     def _filter_filenames(self, name_list):
         return [f for f in name_list if IMAGE_FILE_EXTENSION_RE.search(f)]
 

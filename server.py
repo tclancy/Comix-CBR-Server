@@ -3,16 +3,20 @@
 import ConfigParser
 import fnmatch
 import logging
+import mimetypes
 import os
 from rar import RarFile, BadRarFile
 import re
 from shutil import rmtree
+import subprocess
 import sys
 import zipfile
 
+from twisted.python.log import err
+from twisted.protocols.basic import FileSender
+from twisted.internet import reactor, defer, error as twistedErrors
 from twisted.web import server, resource
 from twisted.web.error import NoResource
-from twisted.internet import reactor, error as twistedErrors
 
 # Setup logging
 logger = logging.getLogger("comix")
@@ -50,6 +54,9 @@ FILENAME_SPACE_CLEANER = re.compile("\s+|\s+-\s+")
 
 ROOT = os.path.dirname(os.path.realpath(__file__))
 STORAGE_PATH = os.path.join(ROOT, "temporary_storage")
+
+# Caching
+CURRENT_ISSUE = {}
 
 
 # global setup stuff
@@ -221,9 +228,20 @@ class CBRResource(resource.Resource):
     def render_GET(self, request):
         request.setHeader("content-type", "text/html")
         response = self.get_matching_response(request.path)
-        if (not response
-            or not hasattr(response, "has_key") or not response.has_key("body")):
+        if not response:
             return None
+        if response.has_key("static"):
+            file_path = response["static"]
+            contentType, junk = mimetypes.guess_type(file_path)
+            request.setHeader("Content-Type",
+                              contentType if contentType else "text/plain")
+            fp = open(file_path, "rb")
+            d = FileSender().beginFileTransfer(fp, request)
+            def cbFinished(ignored):
+                fp.close()
+                request.finish()
+            d.addErrback(err).addCallback(cbFinished)
+            return server.NOT_DONE_YET
         return template % {
             "title": str(response["title"]),
             "body": str(response["body"])
@@ -236,9 +254,11 @@ class CBRResource(resource.Resource):
             if top_folder == "favicon.ico":
                 return None
             if top_folder == "issue" and len(request_info) == 3:
-                return self.request_issue(request_info[1], request_info[2])
+                return self.request_issue(*request_info[1:])
             if top_folder in self.parent.titles.keys():
                 return self.request_title_list(top_folder)
+            if top_folder == "page" and len(request_info) == 4:
+                return self.request_page(*request_info[1:])
         return self.request_root()
     
     def request_root(self):
@@ -259,7 +279,7 @@ class CBRResource(resource.Resource):
         content = "<h1>%s</h1><ul>" % (title)
         for key in entry["files"].keys():
             content += '<li><a href="/issue/%s/%s/">%s</a></li>' % (title_key,
-                                                key, entry["files"][key])
+                                    key, os.path.basename(entry["files"][key]))
         content += "</ul>"
         return {
             "body": content,
@@ -267,26 +287,57 @@ class CBRResource(resource.Resource):
         }
     
     def request_issue(self, title_key, file_key):
+        file_contents = self._open_issue(title_key, file_key)
+        if not file_contents:
+            return None
+        content = "<h1>Files in %s</h1><ul>" % (title_key)
+        for position, f in enumerate(file_contents):
+            content += '<li><a href="/page/%s/%s/%d">%s</a></li>' % (
+                title_key, file_key, (position + 1), os.path.basename(f)
+            )
+        content += "</ul>"
+        return {
+            "body": content,
+            "title": title_key
+        }
+
+    def request_page(self, title_key, file_key, position):
+        """
+        Get a page inside a given issue
+        """
+        file_contents = self._open_issue(title_key, file_key)
+        if not file_contents:
+            return None
+        try:
+            position = int(position) - 1
+        except TypeError:
+            return None
+        return {"static": os.path.join(STORAGE_PATH, file_contents[position])}
+
+    def _open_issue(self, title_key, file_key):
+        """
+        Given the book title and the specific issue, get the contents
+        in the zip/ rar file
+        TODO: cache this in memory in a structure that only holds an issue or
+        two. 
+        """
+        cache_key = "%s-%s" % (title_key, file_key)
+        contents = CURRENT_ISSUE.get(cache_key, None)
+        if contents:
+            return contents
         if not self.parent.titles.has_key(title_key):
             return None
         entry = self.parent.titles[title_key]
         issue = entry["files"].get(file_key, None)
         if not issue:
             return None
-        path = issue
-        file_contents = self._open_issue(issue)
-        if not file_contents:
+        contents = self._open_issue_file(issue)
+        if not contents:
             return None
-        content = "<h1>Files in %s</h1><ul>" % (path)
-        for f in file_contents:
-            content += "<li>%s</li>" % f
-        content += "</ul>"
-        return {
-            "body": content,
-            "title": path
-        }
-    
-    def _open_issue(self, path):
+        CURRENT_ISSUE[cache_key] = contents
+        return contents
+
+    def _open_issue_file(self, path):
         """
         Open issue file based on extension
         .cbr = RAR file
@@ -309,17 +360,18 @@ class CBRResource(resource.Resource):
             try:
                 z = zipfile.ZipFile(path)
                 files = self._filter_filenames(z.namelist())
-                # TODO: Create a temporary folder for files
+                paths = []
                 for f in files:
                     save_path = os.path.join(folder_path, f.split(os.sep)[-1])
                     try:
                         save = open(save_path, "w")
                         save.write(z.read(f))
                         save.close()
+                        paths.append(save_path)
                     except IOError:
                         logging.warn("Unable to open a file: %s" % save_path)
                         logging.warn("Original path: %s" % f)
-                return files
+                return paths
             except zipfile.BadZipfile:
                 return None
         
@@ -337,7 +389,6 @@ class CBRResource(resource.Resource):
     def _filter_filenames(self, name_list):
         return [f for f in name_list if IMAGE_FILE_EXTENSION_RE.search(f)]
 
-
 # run as script
 if __name__ == '__main__':
     config = ConfigParser.ConfigParser()
@@ -348,6 +399,7 @@ if __name__ == '__main__':
             reactor.listenTCP(port, server.Site(
                 ComicServer(config.get("basics", "directory")))
             )
+            logger.info("Listening on %d" % port)
             reactor.run()
         except twistedErrors.CannotListenError:
             logger.critical("Could not listen on port %d. Is something else running there?" % port)

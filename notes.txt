@@ -6,6 +6,10 @@ Concept: consume a directory (or directories?) and return JSON at a few URL patt
     /name/issue id = json dump of {page & image urls}
     /name/issue id/page = image url
 
+TODO
+    document functions and clean up pathing logic
+    trap case where you restart server and temp directory has gone away but you're looking at issue file list again
+
 Issues
     file name formatting is incredibly inconsistent
         ignore all the shit in parentheses
@@ -15,6 +19,11 @@ Issues
     can I at least trust directory names to be meaningful and correct?
     be nice to process folders, files and contents via a generator, so there isn't a huge start up issue
     bonus points: watch directory for changes, update
+    serve files
+        https://github.com/yosinski/simple-twisted-image-server/blob/master/server.py
+        http://stackoverflow.com/questions/1538617/http-download-very-big-file
+        http://codereview.stackexchange.com/questions/2315/file-serving-twisted-resource
+        http://stackoverflow.com/questions/4110579/twisted-web-how-do-i-properly-images-from-an-images-directory
 
 RAR Files
     rarfile docs: http://rarfile.berlios.de/doc/

@@ -235,7 +235,7 @@ class CBRResource(resource.Resource):
             top_folder = request_info[0]
             if top_folder == "favicon.ico":
                 return None
-            if top_folder == "read" and len(request_info) == 3:
+            if top_folder == "issue" and len(request_info) == 3:
                 return self.request_issue(request_info[1], request_info[2])
             if top_folder in self.parent.titles.keys():
                 return self.request_title_list(top_folder)
@@ -258,7 +258,7 @@ class CBRResource(resource.Resource):
         title = entry["full title"]
         content = "<h1>%s</h1><ul>" % (title)
         for key in entry["files"].keys():
-            content += '<li><a href="/read/%s/%s/">%s</a></li>' % (title_key,
+            content += '<li><a href="/issue/%s/%s/">%s</a></li>' % (title_key,
                                                 key, entry["files"][key])
         content += "</ul>"
         return {
@@ -301,7 +301,6 @@ class CBRResource(resource.Resource):
             return None
         extension = path.lower()[-3:]
         folder_name = path.split(os.sep)[-1].split(".")[0]
-        print "Folder: %s" % folder_name
         folder_path = os.path.join(STORAGE_PATH, folder_name)
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
